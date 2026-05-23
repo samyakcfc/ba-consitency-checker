@@ -12,12 +12,14 @@
   .subtitle { font-size: 14px; color: #666; margin-bottom: 2rem; }
   .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
   label { font-size: 13px; color: #555; font-weight: 500; display: block; margin-bottom: 6px; }
-  input[type="password"], input[type="text"] { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; font-family: monospace; outline: none; }
+  input[type="password"] { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; font-family: monospace; outline: none; }
   input:focus { border-color: #888; }
   .doc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1rem; }
   .doc-box { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1rem; }
+  .doc-box.optional { border-style: dashed; }
   .doc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .doc-label { font-size: 13px; font-weight: 500; color: #333; }
+  .optional-tag { font-size: 11px; color: #999; background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
   .clear-btn { font-size: 12px; color: #999; background: none; border: none; cursor: pointer; text-decoration: underline; }
   textarea { width: 100%; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px; font-size: 12px; font-family: monospace; resize: vertical; min-height: 160px; outline: none; color: #333; }
   textarea:focus { border-color: #888; }
@@ -37,14 +39,13 @@
   .err-body { color: #dc2626; font-size: 13px; }
   .debug { font-size: 11px; font-family: monospace; color: #999; margin-top: 6px; word-break: break-all; }
   .summary-line { font-size: 13px; color: #666; margin-bottom: 12px; }
-  .warning-icon { color: #d97706; font-size: 16px; }
   @media (max-width: 700px) { .doc-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>BA Requirements Consistency Checker</h1>
-  <p class="subtitle">Paste your three Business Analysis Documents, describe an edit, and detect cross-document inconsistencies using AI.</p>
+  <p class="subtitle">Paste 2 or 3 Business Analysis Documents, describe an edit, and detect cross-document inconsistencies using AI.</p>
 
   <div class="card">
     <label for="apiKey">🔒 Anthropic API Key (stays in your browser only)</label>
@@ -54,29 +55,29 @@
   <div class="doc-grid">
     <div class="doc-box">
       <div class="doc-header">
-        <span class="doc-label">Document 1 — Sales Admin</span>
+        <span class="doc-label">Document 1</span>
         <button class="clear-btn" onclick="document.getElementById('doc1').value=''">clear</button>
       </div>
-      <textarea id="doc1" placeholder="Paste Sales Admin BAD content here..."></textarea>
+      <textarea id="doc1" placeholder="Paste first BAD content here..."></textarea>
     </div>
     <div class="doc-box">
       <div class="doc-header">
-        <span class="doc-label">Document 2 — Sales Manager</span>
+        <span class="doc-label">Document 2</span>
         <button class="clear-btn" onclick="document.getElementById('doc2').value=''">clear</button>
       </div>
-      <textarea id="doc2" placeholder="Paste Sales Manager BAD content here..."></textarea>
+      <textarea id="doc2" placeholder="Paste second BAD content here..."></textarea>
     </div>
-    <div class="doc-box">
+    <div class="doc-box optional">
       <div class="doc-header">
-        <span class="doc-label">Document 3 — Sales Rep</span>
+        <span class="doc-label">Document 3 <span class="optional-tag">optional</span></span>
         <button class="clear-btn" onclick="document.getElementById('doc3').value=''">clear</button>
       </div>
-      <textarea id="doc3" placeholder="Paste Sales Rep BAD content here..."></textarea>
+      <textarea id="doc3" placeholder="Paste third BAD content here (optional)..."></textarea>
     </div>
   </div>
 
   <div class="card">
-    <p class="hint">e.g. "Changed commission rate in Section 11 of Sales Admin BAD from 5% to 7%"</p>
+    <p class="hint">e.g. "Changed commission rate in Section 11 of Document 1 from 5% to 7%"</p>
     <label for="editDesc">Describe your edit</label>
     <textarea class="edit-area" id="editDesc" placeholder="Describe the change you made or are planning to make..."></textarea>
   </div>
@@ -98,23 +99,25 @@ async function runCheck() {
 
   if (!apiKey) { showError('Please enter your Anthropic API key.'); return; }
   if (!apiKey.startsWith('sk-ant-')) { showError('API key looks incorrect — it should start with sk-ant-'); return; }
-  if (!doc1 && !doc2 && !doc3) { showError('Please paste at least two documents to compare.'); return; }
+
+  const filledDocs = [doc1, doc2, doc3].filter(d => d.length > 0);
+  if (filledDocs.length < 2) { showError('Please paste at least 2 documents to compare.'); return; }
   if (!edit) { showError('Please describe your edit.'); return; }
 
   btn.disabled = true;
   btn.textContent = 'Analyzing...';
   resultsDiv.innerHTML = '<p style="text-align:center;color:#666;font-size:13px;padding:1rem;">Sending to Claude API — this may take 10–15 seconds...</p>';
 
-  const prompt = `You are a senior Business Analyst reviewing three linked Business Analysis Documents (BADs) for a multi-role sales portal system.
+  const docCount = doc3 ? 'three' : 'two';
+  const prompt = `You are a senior Business Analyst reviewing ${docCount} linked Business Analysis Documents (BADs).
 
-Document 1 (Sales Admin BAD):
+Document 1:
 ${doc1 || '[not provided]'}
 
-Document 2 (Sales Manager BAD):
+Document 2:
 ${doc2 || '[not provided]'}
 
-Document 3 (Sales Rep BAD):
-${doc3 || '[not provided]'}
+${doc3 ? `Document 3:\n${doc3}` : ''}
 
 The analyst made this edit: "${edit}"
 
@@ -167,7 +170,7 @@ function renderResults(data) {
   data.inconsistencies.forEach(item => {
     html += `<div class="result-card">
       <div class="flag-title">
-        <span class="warning-icon">⚠</span>
+        <span style="color:#d97706;">⚠</span>
         ${item.document} — ${item.section}
         <span class="flag-badge">needs update</span>
       </div>
